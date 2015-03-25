@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+	xmlns:beans="http://www.springframework.org/schema/beans" xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+		http://www.springframework.org/schema/beans
+		http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+		http://www.springframework.org/schema/jdbc
+		http://www.springframework.org/schema/jdbc/spring-jdbc-3.0.xsd
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-3.0.xsd
+		http://www.springframework.org/schema/security
+		http://www.springframework.org/schema/security/spring-security-3.0.xsd
+					http://www.springframework.org/schema/context
+			http://www.springframework.org/schema/context/spring-context-3.0.xsd
+">
+	<authentication-manager alias="authenticationManager">
+		<authentication-provider user-service-ref="userManager">
+			<password-encoder hash="plaintext" />
+		</authentication-provider>
+	</authentication-manager>
+
+	<beans:bean id="userManager"
+		class="org.springframework.security.provisioning.JdbcUserDetailsManager">
+		<beans:property name="dataSource" ref="securityDataSource" />
+		<beans:property name="enableGroups" value="false" />
+		<beans:property name="enableAuthorities" value="true" />
+	</beans:bean>
+
+	<context:property-placeholder location="classpath:jdbc.properties" />
+	<beans:bean id="securityDataSource"
+		class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+		<beans:property name="driverClassName" value="${userdb.driver}" />
+		<beans:property name="url" value="${userdb.url}" />
+		<beans:property name="username" value="${userdb.username}" />
+		<beans:property name="password" value="${userdb.password}" />
+	</beans:bean>
+
+
+	<jdbc:initialize-database data-source="securityDataSource"
+		ignore-failures="ALL" enabled="true">
+		<jdbc:script location="classpath:security-schema.sql" />
+	</jdbc:initialize-database>
+
+	<global-method-security secured-annotations="enabled"
+		access-decision-manager-ref="fileSystemAccessDecisionManager" />
+		
+
+	<beans:bean id="fileSystemAccessDecisionManager"
+		class="org.springframework.security.access.vote.AffirmativeBased">
+
+		<beans:property name="decisionVoters">
+			<beans:list>
+				<beans:bean id="roleVoter"
+					class="org.springframework.security.access.vote.RoleVoter" />
+				<beans:ref local="aclArticleWriteVoter" />
+				<beans:ref local="aclArticleReadVoter" />
+				<beans:ref local="aclArticleCreateVoter" />
+			</beans:list>
+		</beans:property>
+	</beans:bean>
+
+
+	<beans:bean id="aclArticleCreateVoter"
+		class="org.springframework.security.acls.AclEntryVoter">
+		<beans:constructor-arg ref="aclService" />
+
+		<beans:constructor-arg value="ACL_FILE_CREATE" />
+		<beans:constructor-arg>
+			<beans:list>
+				<util:constant id="createPermission"
+					static-field="org.springframework.security.acls.domain.BasePermission.CREATE" />
+			</beans:list>
+		</beans:constructor-arg>
+
+		<beans:property name="objectIdentityRetrievalStrategy">
+			<beans:bean class="com.test.infrastructure.FileNameRetrievalStrategy" />
+		</beans:property>
+
+		<beans:property name="processDomainObjectClass" value="java.lang.String" />
+	</beans:bean>
+
+
+	<beans:bean id="aclArticleWriteVoter"
+		class="org.springframework.security.acls.AclEntryVoter">
+		<beans:constructor-arg ref="aclService" />
+
+		<beans:constructor-arg value="ACL_FILE_WRITE" />
+		<beans:constructor-arg>
+			<beans:list>
+				<util:constant id="writePermission"
+					static-field="org.springframework.security.acls.domain.BasePermission.WRITE" />
+			</beans:list>
+		</beans:constructor-arg>
+
+		<beans:property name="objectIdentityRetrievalStrategy">
+			<beans:bean class="com.test.infrastructure.FileNameRetrievalStrategy" />
+		</beans:property>
+
+		<beans:property name="processDomainObjectClass" value="java.lang.String" />
+	</beans:bean>
+
+
+	<beans:bean id="aclArticleReadVoter"
+		class="org.springframework.security.acls.AclEntryVoter">
+		<beans:constructor-arg ref="aclService" />
+
+		<beans:constructor-arg value="ACL_FILE_READ" />
+		<beans:constructor-arg>
+			<beans:list>
+				<util:constant id="readPermission"
+					static-field="org.springframework.security.acls.domain.BasePermission.READ" />
+			</beans:list>
+		</beans:constructor-arg>
+
+		<beans:property name="objectIdentityRetrievalStrategy">
+			<beans:bean class="com.test.infrastructure.FileNameRetrievalStrategy" />
+		</beans:property>
+
+		<beans:property name="processDomainObjectClass" value="java.lang.String" />
+	</beans:bean>
+
+	<beans:bean id="aclService"
+		class="com.test.infrastructure.InMemoryAclServiceImpl" />
+
+
+	<beans:bean id="aclCache"
+		class="org.springframework.security.acls.domain.EhCacheBasedAclCache">
+		<beans:constructor-arg>
+			<beans:bean class="org.springframework.cache.ehcache.EhCacheFactoryBean">
+				<beans:property name="cacheManager">
+					<beans:bean
+						class="org.springframework.cache.ehcache.EhCacheManagerFactoryBean" />
+				</beans:property>
+				<beans:property name="cacheName" value="aclCache" />
+			</beans:bean>
+		</beans:constructor-arg>
+	</beans:bean>
+
+</beans:beans>
